@@ -186,11 +186,11 @@ func (expr *Expression) nextSecond(t time.Time) time.Time {
 }
 
 /******************************************************************************/
-
+// 计算这个月实际的月份
 func (expr *Expression) calculateActualDaysOfMonth(year, month int) []int {
 	actualDaysOfMonthMap := make(map[int]bool)
-	firstDayOfMonth := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-	lastDayOfMonth := firstDayOfMonth.AddDate(0, 1, -1)
+	firstDayOfMonth := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC) // 这个月的第一天
+	lastDayOfMonth := firstDayOfMonth.AddDate(0, 1, -1) // 　　
 
 	// As per crontab man page (http://linux.die.net/man/5/crontab#):
 	//  "The day of a command's execution can be specified by two
@@ -277,13 +277,13 @@ func workdayOfMonth(targetDom, lastDom time.Time) int {
 	dow := targetDom.Weekday()
 	if dow == time.Saturday {
 		if dom > 1 {
-			dom -= 1
+			dom --
 		} else {
 			dom += 2
 		}
 	} else if dow == time.Sunday {
 		if dom < lastDom.Day() {
-			dom += 1
+			dom ++
 		} else {
 			dom -= 2
 		}

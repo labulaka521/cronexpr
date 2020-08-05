@@ -56,6 +56,7 @@ func MustParse(cronLine string) *Expression {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(expr)
 	return expr
 }
 
@@ -69,16 +70,20 @@ func MustParse(cronLine string) *Expression {
 func Parse(cronLine string) (*Expression, error) {
 
 	// Maybe one of the built-in aliases is being used
+	// 将一些预定义的cronexpr转换为标准cron表达式
 	cron := cronNormalizer.Replace(cronLine)
 
+	// "* * * * * * *"
+	// [[0 1] [2 3] [4 5] [6 7] [8 9] [10 11] [12 13]]
 	indices := fieldFinder.FindAllStringIndex(cron, -1)
+
 	fieldCount := len(indices)
 	if fieldCount < 5 {
 		return nil, fmt.Errorf("missing field(s)")
 	}
 	// ignore fields beyond 7th
 	if fieldCount > 7 {
-		fieldCount = 7
+		return nil, fmt.Errorf("cronexpr field max count is 7, but get %d", fieldCount)
 	}
 
 	var expr = Expression{}
@@ -91,7 +96,7 @@ func Parse(cronLine string) (*Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		field += 1
+		field++
 	} else {
 		expr.secondList = []int{0}
 	}
@@ -101,35 +106,35 @@ func Parse(cronLine string) (*Expression, error) {
 	if err != nil {
 		return nil, err
 	}
-	field += 1
+	field++
 
 	// hour field
 	err = expr.hourFieldHandler(cron[indices[field][0]:indices[field][1]])
 	if err != nil {
 		return nil, err
 	}
-	field += 1
+	field++
 
 	// day of month field
 	err = expr.domFieldHandler(cron[indices[field][0]:indices[field][1]])
 	if err != nil {
 		return nil, err
 	}
-	field += 1
+	field++
 
 	// month field
 	err = expr.monthFieldHandler(cron[indices[field][0]:indices[field][1]])
 	if err != nil {
 		return nil, err
 	}
-	field += 1
+	field++
 
 	// day of week field
 	err = expr.dowFieldHandler(cron[indices[field][0]:indices[field][1]])
 	if err != nil {
 		return nil, err
 	}
-	field += 1
+	field++
 
 	// year field
 	if field < fieldCount {
@@ -141,6 +146,7 @@ func Parse(cronLine string) (*Expression, error) {
 		expr.yearList = yearDescriptor.defaultList
 	}
 
+	// expr 中包含了直到2099年所有需要运行的时间点
 	return &expr, nil
 }
 
@@ -172,27 +178,30 @@ func (expr *Expression) Next(fromTime time.Time) time.Time {
 
 	// year
 	v := fromTime.Year()
-	i := sort.SearchInts(expr.yearList, v)
-	if i == len(expr.yearList) {
+	i := sort.SearchInts(expr.yearList, v)  // 找到v在这个有序数组的位置索引
+
+	if i == len(expr.yearList) { // 如果在slice中没有寻找的值 返回空
 		return time.Time{}
 	}
-	if v != expr.yearList[i] {
+	if v != expr.yearList[i] { // 如果现在的年份和对应列表里的年份不相等 则取下一年
 		return expr.nextYear(fromTime)
 	}
 	// month
 	v = int(fromTime.Month())
 	i = sort.SearchInts(expr.monthList, v)
-	if i == len(expr.monthList) {
+	if i == len(expr.monthList) { // 如果相等 说明需要的月份已经超过了实际有效的月份 这时需要从下一年计算
 		return expr.nextYear(fromTime)
 	}
-	if v != expr.monthList[i] {
+	if v != expr.monthList[i] { // 没有有效月份 取下一个月
 		return expr.nextMonth(fromTime)
 	}
 
+	// 计算一个月实际的天数
 	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(fromTime.Year(), int(fromTime.Month()))
 	if len(expr.actualDaysOfMonthList) == 0 {
 		return expr.nextMonth(fromTime)
 	}
+
 
 	// day of month
 	v = fromTime.Day()
@@ -224,7 +233,8 @@ func (expr *Expression) Next(fromTime time.Time) time.Time {
 	// second
 	v = fromTime.Second()
 	i = sort.SearchInts(expr.secondList, v)
-	if i == len(expr.secondList) {
+	if i == len(expr.secondList) {  // 只有在cronexpr中定义了时间段 才有可能走到这一步
+		fmt.Println(v)
 		return expr.nextMinute(fromTime)
 	}
 
@@ -255,7 +265,7 @@ func (expr *Expression) NextN(fromTime time.Time, n uint) []time.Time {
 				break
 			}
 			nextTimes = append(nextTimes, fromTime)
-			n -= 1
+			n --
 			if n == 0 {
 				break
 			}

@@ -121,7 +121,7 @@ var (
 		min:          0,
 		max:          59,
 		defaultList:  genericDefaultList[0:60],
-		valuePattern: `0?[0-9]|[1-5][0-9]`,
+		valuePattern: `0?[0-9]|[1-5][0-9]`, // 匹配01，02，03，3 或者12，23，45。？代表匹配0次或者一次
 		atoi:         atoi,
 	}
 	minuteDescriptor = fieldDescriptor{
@@ -255,9 +255,9 @@ func (expr *Expression) yearFieldHandler(s string) error {
 
 const (
 	none = 0
-	one  = 1
-	span = 2
-	all  = 3
+	one  = 1 // 只运行一次
+	span = 2 // 在一个范围内运行
+	all  = 3 // 每一个时间点都运行
 )
 
 type cronDirective struct {
@@ -278,6 +278,7 @@ func genericFieldHandler(s string, desc fieldDescriptor) ([]int, error) {
 	for _, directive := range directives {
 		switch directive.kind {
 		case none:
+			// 如果存储none则为不合法的cronexpr表达式
 			return nil, fmt.Errorf("syntax error in %s field: '%s'", desc.name, s[directive.sbeg:directive.send])
 		case one:
 			populateOne(values, directive.first)
@@ -287,6 +288,7 @@ func genericFieldHandler(s string, desc fieldDescriptor) ([]int, error) {
 			return desc.defaultList, nil
 		}
 	}
+
 	return toList(values), nil
 }
 
@@ -383,6 +385,7 @@ func populateOne(values map[int]bool, v int) {
 	values[v] = true
 }
 
+// 计算出
 func populateMany(values map[int]bool, min, max, step int) {
 	for i := min; i <= max; i += step {
 		values[i] = true
@@ -394,16 +397,17 @@ func toList(set map[int]bool) []int {
 	i := 0
 	for k := range set {
 		list[i] = k
-		i += 1
+		i++
 	}
 	sort.Ints(list)
 	return list
 }
 
 /******************************************************************************/
-
+// 解析字段
 func genericFieldParse(s string, desc fieldDescriptor) ([]*cronDirective, error) {
 	// At least one entry must be present
+	// 使用逗号来分隔某个位置的值
 	indices := entryFinder.FindAllStringIndex(s, -1)
 	if len(indices) == 0 {
 		return nil, fmt.Errorf("%s field: missing directive", desc.name)
@@ -419,6 +423,7 @@ func genericFieldParse(s string, desc fieldDescriptor) ([]*cronDirective, error)
 		snormal := strings.ToLower(s[indices[i][0]:indices[i][1]])
 
 		// `*`
+		// 匹配星号或者问号
 		if makeLayoutRegexp(layoutWildcard, desc.valuePattern).MatchString(snormal) {
 			directive.kind = all
 			directive.first = desc.min
@@ -428,6 +433,7 @@ func genericFieldParse(s string, desc fieldDescriptor) ([]*cronDirective, error)
 			continue
 		}
 		// `5`
+		// 匹配数字
 		if makeLayoutRegexp(layoutValue, desc.valuePattern).MatchString(snormal) {
 			directive.kind = one
 			directive.first = desc.atoi(snormal)
@@ -435,6 +441,7 @@ func genericFieldParse(s string, desc fieldDescriptor) ([]*cronDirective, error)
 			continue
 		}
 		// `5-20`
+		// 匹配数值范围
 		pairs := makeLayoutRegexp(layoutRange, desc.valuePattern).FindStringSubmatchIndex(snormal)
 		if len(pairs) > 0 {
 			directive.kind = span
@@ -445,6 +452,8 @@ func genericFieldParse(s string, desc fieldDescriptor) ([]*cronDirective, error)
 			continue
 		}
 		// `*/2`
+		// 匹配使用补偿
+		//
 		pairs = makeLayoutRegexp(layoutWildcardAndInterval, desc.valuePattern).FindStringSubmatchIndex(snormal)
 		if len(pairs) > 0 {
 			directive.kind = span
@@ -471,6 +480,7 @@ func genericFieldParse(s string, desc fieldDescriptor) ([]*cronDirective, error)
 			continue
 		}
 		// `5-20/2`
+		// 在5-20之间每个2执行
 		pairs = makeLayoutRegexp(layoutRangeAndInterval, desc.valuePattern).FindStringSubmatchIndex(snormal)
 		if len(pairs) > 0 {
 			directive.kind = span
